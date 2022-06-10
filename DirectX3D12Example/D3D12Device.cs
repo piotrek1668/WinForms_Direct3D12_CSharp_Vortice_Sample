@@ -12,8 +12,9 @@ using Vortice.Mathematics;
 using static Vortice.Direct3D12.D3D12;
 using BlendDescription = Vortice.Direct3D12.BlendDescription;
 using FeatureLevel = Vortice.Direct3D.FeatureLevel;
-using InputElementDescription = Vortice.Direct3D12.InputElementDescription;
 using ResultCode = Vortice.DXGI.ResultCode;
+
+#nullable disable
 
 namespace DirectX3D12Example
 {
@@ -24,28 +25,28 @@ namespace DirectX3D12Example
         private const int BufferCount = 2;
 
         private Control[] controls;
-        private ID3D12Device2? device;
-        private ID3D12DebugDevice2? debugDevice;
-        private ID3D12DescriptorHeap? rtvHeap;
+        private ID3D12Device2 device;
+        private ID3D12DebugDevice2 debugDevice;
+        private ID3D12DescriptorHeap rtvHeap;
         private int rtvDescriptorSize;
-        private ID3D12Resource[]? renderTargets;
-        private ID3D12CommandAllocator[]? commandAllocators;
+        private ID3D12Resource[] renderTargets;
+        private ID3D12CommandAllocator[] commandAllocators;
 
-        private ID3D12RootSignature? rootSignature;
-        private ID3D12PipelineState? pipelineState;
+        private ID3D12RootSignature rootSignature;
+        private ID3D12PipelineState pipelineState;
 
-        private ID3D12GraphicsCommandList4? commandList;
+        private ID3D12GraphicsCommandList4 commandList;
 
-        private ID3D12Resource? vertexBufferTriangle;
-        private ID3D12Resource? vertexBufferSignal;
-        private ID3D12Resource? vertexBufferPoint;
+        private ID3D12Resource vertexBufferTriangle;
+        private ID3D12Resource vertexBufferSignal;
+        private ID3D12Resource vertexBufferPoint;
 
         private int vertexBufferTriangleSize;
         private int vertexBufferSignalSize;
         private int vertexBufferPointSize;
 
-        private ID3D12Fence? frameFence;
-        private AutoResetEvent? frameFenceEvent;
+        private ID3D12Fence frameFence;
+        private AutoResetEvent frameFenceEvent;
         private ulong frameCount;
         private ulong frameIndex;
         private int backbufferIndex;
@@ -65,9 +66,9 @@ namespace DirectX3D12Example
 
         #region Properties
 
-        public ID3D12CommandQueue? commandQueue { get; set; }
+        public ID3D12CommandQueue CommandQueue { get; set; }
 
-        public IDXGISwapChain3? SwapChain { get; set; }
+        public IDXGISwapChain3 SwapChain { get; set; }
 
         #endregion
 
@@ -85,8 +86,6 @@ namespace DirectX3D12Example
             this.LoadPipeline();
             this.LoadAssets();
             this.initialized = true;
-
-            //this.CreatePointTexture();
         }
 
         private void LoadPipeline()
@@ -111,9 +110,9 @@ namespace DirectX3D12Example
             IDXGIAdapter adapter = factory.GetAdapter();
 
             // Auswahl der GPU möglich (High-Performance for Desktop, Lower-Performance for Notebook, ...)
-            if (D3D12CreateDevice(adapter, out ID3D12Device2? tempDevice).Success)
+            if (D3D12CreateDevice(adapter, out ID3D12Device2 tempDevice).Success)
             {
-                maxSupportedFeatureLevel = tempDevice!.CheckMaxSupportedFeatureLevel();
+                maxSupportedFeatureLevel = tempDevice.CheckMaxSupportedFeatureLevel();
                 string text = $"FeatureLevel: '{maxSupportedFeatureLevel}'; Device: '{adapter.Description.Description}'";
                 ((Form1)this.controls[0]).UpdateLabelText(text);
 
@@ -133,8 +132,8 @@ namespace DirectX3D12Example
             // Create Command queue
             // Die commandQueue arbeitet die CommandLists ab
             // Potenziell können mehrere Queues für unterschiedliche Zwecke erstellt werden (Copy, Direct, Compute, ...)
-            commandQueue = device!.CreateCommandQueue<ID3D12CommandQueue>(CommandListType.Direct);
-            commandQueue.Name = "Command Queue";
+            CommandQueue = device.CreateCommandQueue<ID3D12CommandQueue>(CommandListType.Direct);
+            CommandQueue.Name = "Command Queue";
 
             SwapChainDescription1 swapChainDesc = new()
             {
@@ -149,7 +148,7 @@ namespace DirectX3D12Example
             };
 
             // Create swap chain
-            using (IDXGISwapChain1 swapChain = factory.DXGIFactory4.CreateSwapChainForHwnd(commandQueue, this.controls[1].Handle, swapChainDesc))
+            using (IDXGISwapChain1 swapChain = factory.DXGIFactory4.CreateSwapChainForHwnd(CommandQueue, this.controls[1].Handle, swapChainDesc))
             {
                 factory.DXGIFactory4.MakeWindowAssociation(controls[1].Handle, WindowAssociationFlags.IgnoreAltEnter);
 
@@ -203,17 +202,11 @@ namespace DirectX3D12Example
         {
             // Create an empty root signature
             RootSignatureDescription1 rootSignatureDesc = new(RootSignatureFlags.AllowInputAssemblerInputLayout);
-            rootSignature = device!.CreateRootSignature<ID3D12RootSignature>(rootSignatureDesc);
-
-            InputElementDescription[] inputElementDescs = new[]
-            {
-                new InputElementDescription("POSITION", 0, Format.R32G32B32_Float, 0, 0), // see comment below
-                new InputElementDescription("COLOR", 0, Format.R32G32B32A32_Float, 12, 0) // offset = 12 = 3 * 32 bit = 3 * 4 byte (R32G32B32_Float)
-            };
+            rootSignature = device.CreateRootSignature<ID3D12RootSignature>(rootSignatureDesc);
 
             // Compile the shaders
-            byte[] vertexShaderByteCode = CompileBytecode(DxcShaderStage.Vertex, "Triangle.hlsl", "VSMain");
-            byte[] pixelShaderByteCode = CompileBytecode(DxcShaderStage.Pixel, "Triangle.hlsl", "PSMain");
+            byte[] vertexShaderByteCode = CompileBytecode(DxcShaderStage.Vertex, "PositionColor.hlsl", "VSMain");
+            byte[] pixelShaderByteCode = CompileBytecode(DxcShaderStage.Pixel, "PositionColor.hlsl", "PSMain");
 
             // Create vertex input layout
             // Create a pipeline state object description, then create the object
@@ -222,7 +215,7 @@ namespace DirectX3D12Example
                 RootSignature = rootSignature,
                 VertexShader = new ShaderBytecode(vertexShaderByteCode),
                 PixelShader = new ShaderBytecode(pixelShaderByteCode),
-                InputLayout = new InputLayoutDescription(inputElementDescs),
+                InputLayout = new InputLayoutDescription(VertexPositionColor.InputElements),
                 SampleMask = uint.MaxValue,
                 PrimitiveTopology = PrimitiveTopologyType.Triangle,
                 RasterizerState = RasterizerDescription.CullCounterClockwise, // CullCounterClockwise
@@ -240,8 +233,8 @@ namespace DirectX3D12Example
             pipelineState = device.CreatePipelineState(pipelineStateStream);
 
             // Create the command list, the close the command list
-            commandList = device.CreateCommandList<ID3D12GraphicsCommandList4>(CommandListType.Direct, commandAllocators![0], pipelineState);
-            commandList.Close();
+            commandList = device.CreateCommandList<ID3D12GraphicsCommandList4>(CommandListType.Direct, commandAllocators[0], pipelineState);
+            commandList.Close(); // always close command list after using it
 
             // Create and load the vertex buffers
             // Create the vertex buffer views
@@ -260,7 +253,7 @@ namespace DirectX3D12Example
                 ResourceStates.GenericRead);
 
             IntPtr bufferData = (IntPtr)vertexBufferTriangle.Map<VertexPositionColor>(0);
-            ReadOnlySpan<VertexPositionColor> src = new ReadOnlySpan<VertexPositionColor>(triangleVertices);
+            ReadOnlySpan<VertexPositionColor> src = new(triangleVertices);
             MemoryHelpers.CopyMemory(bufferData, src);
             vertexBufferTriangle.Unmap(0);
 
@@ -286,7 +279,7 @@ namespace DirectX3D12Example
                 ResourceStates.GenericRead);
 
             IntPtr bufferData2 = (IntPtr)vertexBufferSignal.Map<VertexPositionColor>(0);
-            ReadOnlySpan<VertexPositionColor> src2 = new ReadOnlySpan<VertexPositionColor>(signalVertices);
+            ReadOnlySpan<VertexPositionColor> src2 = new(signalVertices);
             MemoryHelpers.CopyMemory(bufferData2, src2);
             vertexBufferSignal.Unmap(0);
 
@@ -307,7 +300,7 @@ namespace DirectX3D12Example
                 ResourceStates.GenericRead);
 
             IntPtr bufferData3 = (IntPtr)vertexBufferPoint.Map<VertexPositionColor>(0);
-            ReadOnlySpan<VertexPositionColor> src3 = new ReadOnlySpan<VertexPositionColor>(pointVertices);
+            ReadOnlySpan<VertexPositionColor> src3 = new(pointVertices);
             MemoryHelpers.CopyMemory(bufferData3, src3);
             vertexBufferSignal.Unmap(0);
 
@@ -340,9 +333,9 @@ namespace DirectX3D12Example
             // Bei DirectX12 kann es generell mehrere CommandLists geben, die parallel abgearbeitet werden können.
             // In diesem Fall nutzt man die Methode ExecuteCommandLists und zusätzlich Signal(fence, value) und Wait(fence, value),
             // um die Synchronisierung zwischen den Listen sicherzustellen!
-            commandQueue!.ExecuteCommandList(commandList!);
+            CommandQueue.ExecuteCommandList(commandList);
 
-            // start drawing with Direct2D and DirectWrite
+            // start drawing text with Direct2D and DirectWrite
             hwndRenderTarget.BeginDraw();
             hwndRenderTarget.Transform = Matrix3x2.Identity;
             hwndRenderTarget.Clear(clearColor);
@@ -354,7 +347,7 @@ namespace DirectX3D12Example
             hwndRenderTarget.EndDraw();
 
             // Present the frame
-            Result result = SwapChain!.Present(1, PresentFlags.None);
+            Result result = SwapChain.Present(1, PresentFlags.None);
             if (result.Failure && result.Code == ResultCode.DeviceRemoved) return;
 
             WaitForPreviousFrame();
@@ -363,10 +356,10 @@ namespace DirectX3D12Example
         private void PopulateCommandList()
         {
             // Reset the command list allocator (Re-use the memory that is associated with the command allocator.)
-            commandAllocators![frameIndex].Reset();
+            commandAllocators[frameIndex].Reset();
 
             // Reset the command list
-            commandList!.Reset(commandAllocators[frameIndex], pipelineState);
+            commandList.Reset(commandAllocators[frameIndex], pipelineState);
             commandList.BeginEvent("Frame");
 
             // Set the graphic root signature (Sets the graphics root signature to use for the current command list.)
@@ -380,9 +373,9 @@ namespace DirectX3D12Example
 
             // Set a resource barrier, idicating the back buffer is to be used as a render target
             // (Resource barriers are used to manage resource transitions.)
-            commandList.ResourceBarrierTransition(renderTargets![backbufferIndex], ResourceStates.Present, ResourceStates.RenderTarget);
+            commandList.ResourceBarrierTransition(renderTargets[backbufferIndex], ResourceStates.Present, ResourceStates.RenderTarget);
 
-            CpuDescriptorHandle rtv = rtvHeap!.GetCPUDescriptorHandleForHeapStart();
+            CpuDescriptorHandle rtv = rtvHeap.GetCPUDescriptorHandleForHeapStart();
             rtv += backbufferIndex * rtvDescriptorSize;
 
             var renderPassDesc = new RenderPassRenderTargetDescription(rtv,
@@ -395,15 +388,15 @@ namespace DirectX3D12Example
             int stride = Unsafe.SizeOf<VertexPositionColor>();
 
             commandList.IASetPrimitiveTopology(PrimitiveTopology.TriangleList);
-            commandList.IASetVertexBuffers(0, new VertexBufferView(vertexBufferTriangle!.GPUVirtualAddress, vertexBufferTriangleSize, stride));
+            commandList.IASetVertexBuffers(0, new VertexBufferView(vertexBufferTriangle.GPUVirtualAddress, vertexBufferTriangleSize, stride));
             commandList.DrawInstanced(3, 1, 0, 0);
 
             commandList.IASetPrimitiveTopology(PrimitiveTopology.LineStrip);
-            commandList.IASetVertexBuffers(0, new VertexBufferView(vertexBufferSignal!.GPUVirtualAddress, vertexBufferSignalSize, stride));
+            commandList.IASetVertexBuffers(0, new VertexBufferView(vertexBufferSignal.GPUVirtualAddress, vertexBufferSignalSize, stride));
             commandList.DrawInstanced(10, 1, 0, 0);
 
             commandList.IASetPrimitiveTopology(PrimitiveTopology.PointList);
-            commandList.IASetVertexBuffers(0, new VertexBufferView(vertexBufferPoint!.GPUVirtualAddress, vertexBufferPointSize, stride));
+            commandList.IASetVertexBuffers(0, new VertexBufferView(vertexBufferPoint.GPUVirtualAddress, vertexBufferPointSize, stride));
             commandList.DrawInstanced(5, 1, 0, 0);
 
             commandList.EndRenderPass();
@@ -459,10 +452,10 @@ namespace DirectX3D12Example
 
             using (var includeHandler = new ShaderIncludeHandler(assetsPath))
             {
-                using IDxcResult? results = DxcCompiler.Compile(stage, shaderSource, entryPoint, includeHandler: includeHandler);
-                if (results!.GetStatus().Failure)
+                using IDxcResult results = DxcCompiler.Compile(stage, shaderSource, entryPoint, includeHandler: includeHandler);
+                if (results.GetStatus().Failure)
                 {
-                    throw new Exception(results!.GetErrors());
+                    throw new Exception(results.GetErrors());
                 }
 
                 return results.GetObjectBytecodeArray();
@@ -487,9 +480,7 @@ namespace DirectX3D12Example
             rootSignature?.Dispose();
             SwapChain?.Dispose();
             frameFence?.Dispose();
-            commandQueue?.Dispose();
-
-            // debugDevice?.ReportLiveDeviceObjects(ReportLiveDeviceObjectFlags.Summary);
+            CommandQueue?.Dispose();
             device?.Dispose();
             debugDevice?.Dispose();
         }
@@ -501,26 +492,26 @@ namespace DirectX3D12Example
             // illustrate how to use fences for efficient resource usage.
 
             // Signal and increment the fence value.
-            commandQueue!.Signal(frameFence, ++frameCount);
+            CommandQueue.Signal(frameFence, ++frameCount);
 
             // Wait until the previous frame is finished.
-            ulong GPUFrameCount = frameFence!.CompletedValue; // returns UINT64_MAX if something gone wrong
+            ulong GPUFrameCount = frameFence.CompletedValue; // returns UINT64_MAX if something gone wrong
             if ((frameCount - GPUFrameCount) >= BufferCount)
             {
                 frameFence.SetEventOnCompletion(GPUFrameCount + 1, frameFenceEvent);
-                frameFenceEvent!.WaitOne();
+                frameFenceEvent.WaitOne();
             }
 
             frameIndex = frameCount % BufferCount;
-            backbufferIndex = SwapChain!.CurrentBackBufferIndex;
+            backbufferIndex = SwapChain.CurrentBackBufferIndex;
         }
 
         private void WaitIdle()
         {
             // Wait for the GPU to finish
-            commandQueue!.Signal(frameFence, ++frameCount);
-            frameFence!.SetEventOnCompletion(frameCount, frameFenceEvent);
-            frameFenceEvent!.WaitOne();
+            CommandQueue.Signal(frameFence, ++frameCount);
+            frameFence.SetEventOnCompletion(frameCount, frameFenceEvent);
+            frameFenceEvent.WaitOne();
         }
     }
 }
