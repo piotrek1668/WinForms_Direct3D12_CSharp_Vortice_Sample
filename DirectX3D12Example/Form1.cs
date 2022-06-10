@@ -8,7 +8,6 @@ namespace DirectX3D12Example
         private Label? label;
         private Control? control1;
         private Control? control2;
-        private CheckBox? checkBox;
         private Button? button;
 
         public Form1()
@@ -25,7 +24,6 @@ namespace DirectX3D12Example
             this.graphicDevice!.OnInit();
 
             button!.Enabled = false;
-            checkBox!.Enabled = false;
         }
 
         protected override void OnPaint(PaintEventArgs e)
@@ -37,7 +35,6 @@ namespace DirectX3D12Example
                 this.graphicDevice.OnUpdate();
                 this.graphicDevice.OnRender();
             }
-            
         }
 
         protected override void OnClosing(CancelEventArgs e)
@@ -59,7 +56,7 @@ namespace DirectX3D12Example
 
             label = new Label();
             label.Location = new Point(button.Location.X + button.Size.Width + 10, (button.Height/2));
-            label.Size = new Size(300, 20);
+            label.Size = new Size(500, 20);
             label.Text = "Click to draw";
             this.Controls.Add(label);
 
@@ -75,32 +72,17 @@ namespace DirectX3D12Example
             control2.BackColor = Color.Gray;
             this.Controls.Add(control2);
 
-            checkBox = new CheckBox();
-            checkBox.Location = new Point(control2.Location.X, (button.Height/2));
-            checkBox.CheckStateChanged += CheckBox_CheckStateChanged;
-            checkBox.Size = new Size(200, 20);
-            checkBox.Text = "Use WARP device?";
-            this.Controls.Add(checkBox);
-
             Label leftLabel = new Label();
             leftLabel.Location = new Point(control1.Location.X + (control2.Size.Width/2) - 50, control1.Location.Y + control1.Height);
             leftLabel.Size = new Size(100, 40);
-            leftLabel.Text = "Front buffer";
+            leftLabel.Text = "Direct3D12";
             this.Controls.Add(leftLabel);
 
             Label rightLabel = new Label();
             rightLabel.Location = new Point(control2.Location.X + (control2.Size.Width/2) - 50, control2.Location.Y + control2.Height);
             rightLabel.Size = new Size(100, 40);
-            rightLabel.Text = "Back buffer";
+            rightLabel.Text = "Direct2D1 & DirectWrite";
             this.Controls.Add(rightLabel);
-        }
-
-        private void CheckBox_CheckStateChanged(object? sender, EventArgs e)
-        {
-            if (sender is CheckBox checkBox)
-            {
-                this.graphicDevice?.ChangeDevice(checkBox.Checked);
-            }
         }
 
         public void UpdateLabelText(string text)

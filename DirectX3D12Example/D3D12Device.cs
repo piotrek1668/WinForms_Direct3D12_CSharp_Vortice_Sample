@@ -1,15 +1,21 @@
 ﻿using SharpGen.Runtime;
+using System.Diagnostics;
 using System.Numerics;
 using System.Runtime.CompilerServices;
+using Vortice.DirectWrite;
+using Vortice.Direct2D1;
 using Vortice.Direct3D;
 using Vortice.Direct3D12;
 using Vortice.Direct3D12.Debug;
 using Vortice.Dxc;
 using Vortice.DXGI;
+using Vortice.WIC;
 using Vortice.Mathematics;
 using static Vortice.Direct3D12.D3D12;
-using static Vortice.DXGI.DXGI;
 using ResultCode = Vortice.DXGI.ResultCode;
+using InputElementDescription = Vortice.Direct3D12.InputElementDescription;
+using BlendDescription = Vortice.Direct3D12.BlendDescription;
+using FeatureLevel = Vortice.Direct3D.FeatureLevel;
 
 namespace DirectX3D12Example
 {
@@ -20,9 +26,8 @@ namespace DirectX3D12Example
         private const int BufferCount = 2;
 
         private Control[] controls;
-        private IDXGIFactory4? DXGIFactory;
-        private ID3D12Device2? tempDevice;
         private ID3D12Device2? device;
+        private ID3D12DebugDevice2? debugDevice;
         private ID3D12DescriptorHeap? rtvHeap;
         private int rtvDescriptorSize;
         private ID3D12Resource[]? renderTargets;
@@ -33,23 +38,34 @@ namespace DirectX3D12Example
 
         private ID3D12GraphicsCommandList4? commandList;
 
-        private ID3D12Resource? vertexBuffer;
+        private ID3D12Resource? vertexBufferTriangle;
+        private ID3D12Resource? vertexBufferSignal;
+        private ID3D12Resource? vertexBufferPoint;
+
+        private int vertexBufferTriangleSize;
+        private int vertexBufferSignalSize;
+        private int vertexBufferPointSize;
 
         private ID3D12Fence? frameFence;
         private AutoResetEvent? frameFenceEvent;
         private ulong frameCount;
         private ulong frameIndex;
         private int backbufferIndex;
-        private bool validation = false;
-        private bool useWarpDevice = false;
         private FeatureLevel maxSupportedFeatureLevel;
         public bool initialized = false;
+
+        private ID2D1HwndRenderTarget hwndRenderTarget;
+        private IDWriteTextFormat textFormat;
+        private string text = "Hello, DirectWrite!";
+
+        private Color4 clearColor = new Color4(0.0f, 0.2f, 0.4f, 1.0f);
+        private Color4 colorYellow = new Color4(1.0f, 1.0f, 0.0f, 1.0f);
+        private Color4 colorRed = new Color4(1.0f, 0.0f, 0.0f, 1.0f);
+        private Color4 colorGreen = new Color4(0.0f, 1.0f, 0.0f, 1.0f);
 
         #endregion
 
         #region Properties
-
-        public bool IsTearingSupported { get; set; }
 
         public ID3D12CommandQueue? commandQueue { get; set; }
 
@@ -61,10 +77,6 @@ namespace DirectX3D12Example
 
         public D3D12GraphicsDevice(Control[] controls)
         {
-            #if DEBUG
-            validation = true;
-            #endif
-
             this.controls = controls;
         }
 
@@ -72,9 +84,12 @@ namespace DirectX3D12Example
 
         public void OnInit()
         {
+            this.LoadDirectWrite();
             this.LoadPipeline();
             this.LoadAssets();
             this.initialized = true;
+
+            //this.CreatePointTexture();
         }
 
         private void LoadPipeline()
@@ -86,61 +101,38 @@ namespace DirectX3D12Example
                 return;
             }
 
+            #if DEBUG
             // Enable the debug layouter (always before device creation)
-            if (validation && D3D12GetDebugInterface(out ID3D12Debug? debug).Success)
+            if (D3D12GetDebugInterface<ID3D12Debug3>(out var debugController).Success)
             {
-                debug!.EnableDebugLayer();
-                debug!.Dispose();
+                debugController?.EnableDebugLayer();
             }
+            #endif
 
             // Create the device
-            DXGIFactory = CreateDXGIFactory2<IDXGIFactory4>(validation);
-            if (useWarpDevice)
+            GIFactory factory = new GIFactory();
+            IDXGIAdapter adapter = factory.GetAdapter();
+
+            // Auswahl der GPU möglich (High-Performance for Desktop, Lower-Performance for Notebook, ...)
+            if (D3D12CreateDevice(adapter, out ID3D12Device2? tempDevice).Success)
             {
-                if (DXGIFactory.EnumWarpAdapter(out IDXGIAdapter? adapter).Success)
+                maxSupportedFeatureLevel = tempDevice!.CheckMaxSupportedFeatureLevel();
+                string text = $"FeatureLevel: '{maxSupportedFeatureLevel}'; Device: '{adapter.Description.Description}'";
+                ((Form1)this.controls[0]).UpdateLabelText(text);
+
+                // create device with max supported feature level
+                if (D3D12CreateDevice(adapter, maxSupportedFeatureLevel, out device).Failure)
                 {
-                    D3D12CreateDevice(adapter, out device);
-                    
-                    string text = $"Using device: '{adapter.Description.Description}'";
-                    ((Form1)this.controls[0]).UpdateLabelText(text);
-
-                    adapter?.Dispose();
+                    MessageBox.Show("Device not Created");
+                    return;
                 }
+
+                tempDevice?.Dispose();
             }
-            else
-            {
-                // Auswahl der GPU möglich (High-Performance for Desktop, Lower-Performance for Notebook, ...)
-                for (int adapterIndex = 0; DXGIFactory.EnumAdapters1(adapterIndex, out IDXGIAdapter1 adapter).Success; adapterIndex++)
-                {
-                    AdapterDescription1 desc = adapter.Description1;
-                    var output = adapter.GetOutput(0); // monitor informations (resolution, name, HDR support, etc.)
 
-                    // Don't select the Basic Render Driver adapter.
-                    if ((desc.Flags & AdapterFlags.Software) != AdapterFlags.None)
-                    {
-                        adapter.Dispose();
-                        continue;
-                    }
+            debugDevice = new ID3D12DebugDevice2((IntPtr)device);
 
-                    if (D3D12CreateDevice(adapter, out tempDevice).Success)
-                    {
-                        maxSupportedFeatureLevel = this.tempDevice!.CheckMaxSupportedFeatureLevel();
-                        string text = $"Supported FeatureLevel: '{maxSupportedFeatureLevel}'";
-                        ((Form1)this.controls[0]).UpdateLabelText(text);
-
-                        // create device with max supported feature level
-                        if (D3D12CreateDevice(adapter, maxSupportedFeatureLevel, out device).Failure)
-                        {
-                            MessageBox.Show("Device not Created");
-                            return;
-                        }
-
-                        adapter.Dispose();
-                        tempDevice?.Dispose();
-                        break;
-                    }
-                }
-            }
+            adapter.Dispose();
 
             // Create Command queue
             // Die commandQueue arbeitet die CommandLists ab
@@ -161,13 +153,15 @@ namespace DirectX3D12Example
             };
 
             // Create swap chain
-            using (IDXGISwapChain1 swapChain = DXGIFactory.CreateSwapChainForHwnd(commandQueue, this.controls[1].Handle, swapChainDesc))
+            using (IDXGISwapChain1 swapChain = factory.DXGIFactory4.CreateSwapChainForHwnd(commandQueue, this.controls[1].Handle, swapChainDesc))
             {
-                DXGIFactory.MakeWindowAssociation(controls[1].Handle, WindowAssociationFlags.IgnoreAltEnter);
+                factory.DXGIFactory4.MakeWindowAssociation(controls[1].Handle, WindowAssociationFlags.IgnoreAltEnter);
 
                 SwapChain = swapChain.QueryInterface<IDXGISwapChain3>();
                 backbufferIndex = SwapChain.CurrentBackBufferIndex;
             }
+
+            factory.Dispose();
 
             // Create a render target view (RTV) descriptor heap
             // A descriptor heap can be thought of as an array of descriptors. Where each descriptor fully describes an object to the GPU.
@@ -203,8 +197,8 @@ namespace DirectX3D12Example
 
             InputElementDescription[] inputElementDescs = new[]
             {
-                new InputElementDescription("POSITION", 0, Format.R32G32B32_Float, 0, 0),
-                new InputElementDescription("COLOR", 0, Format.R32G32B32A32_Float, 12, 0)
+                new InputElementDescription("POSITION", 0, Format.R32G32B32_Float, 0, 0), // see comment below
+                new InputElementDescription("COLOR", 0, Format.R32G32B32A32_Float, 12, 0) // offset = 12 = 3 * 32 bit = 3 * 4 byte (R32G32B32_Float)
             };
 
             // Compile the shaders
@@ -243,25 +237,77 @@ namespace DirectX3D12Example
             // Create the vertex buffer views
             VertexPositionColor[] triangleVertices = new VertexPositionColor[]
             {
-                  new VertexPositionColor(new Vector3(0f, 0.5f, 0.0f), new Color4(1.0f, 0.0f, 0.0f, 1.0f)),
-                  new VertexPositionColor(new Vector3(0.5f, -0.5f, 0.0f), new Color4(0.0f, 1.0f, 0.0f, 1.0f)),
-                  new VertexPositionColor(new Vector3(-0.5f, -0.5f, 0.0f), new Color4(0.0f, 0.0f, 1.0f, 1.0f))
+                  new VertexPositionColor(new Vector3(0f, 1.0f, 0.0f), new Color4(1.0f, 0.0f, 0.0f, 1.0f)),
+                  new VertexPositionColor(new Vector3(1.0f, -1.0f, 0.0f), new Color4(0.0f, 1.0f, 0.0f, 1.0f)),
+                  new VertexPositionColor(new Vector3(-1.0f, -1.0f, 0.0f), new Color4(0.0f, 0.0f, 1.0f, 1.0f))
             };
 
-            int vertexBufferSize = 3 * Unsafe.SizeOf<VertexPositionColor>();
-
-            vertexBuffer = device.CreateCommittedResource<ID3D12Resource>(
+            vertexBufferTriangleSize = triangleVertices.Length * Unsafe.SizeOf<VertexPositionColor>();
+            vertexBufferTriangle = device.CreateCommittedResource<ID3D12Resource>(
                 new HeapProperties(HeapType.Upload),
                 HeapFlags.None,
-                ResourceDescription.Buffer((ulong)vertexBufferSize),
+                ResourceDescription.Buffer((ulong)vertexBufferTriangleSize),
                 ResourceStates.GenericRead);
 
             unsafe
             {
-                IntPtr bufferData = (IntPtr)vertexBuffer.Map<VertexPositionColor>(0);
-                ReadOnlySpan<VertexPositionColor> src = new(triangleVertices);
+                IntPtr bufferData = (IntPtr)vertexBufferTriangle.Map<VertexPositionColor>(0);
+                ReadOnlySpan<VertexPositionColor> src = new ReadOnlySpan<VertexPositionColor>(triangleVertices);
                 MemoryHelpers.CopyMemory(bufferData, src);
-                vertexBuffer.Unmap(0);
+                vertexBufferTriangle.Unmap(0);
+            }
+            
+            VertexPositionColor[] signalVertices = new VertexPositionColor[]
+            {
+                new VertexPositionColor(new Vector3(-0.7f, -0.5f, 0.0f), colorYellow),
+                new VertexPositionColor(new Vector3(-0.5f, -0.2f, 0.0f), colorRed),
+                new VertexPositionColor(new Vector3(-0.2f, -0.1f, 0.0f), colorRed),
+                new VertexPositionColor(new Vector3(-0.1f, 0.2f, 0.0f), colorRed),
+                new VertexPositionColor(new Vector3(0.2f, -0.25f, 0.0f), colorYellow),
+                new VertexPositionColor(new Vector3(0.25f, 0.37f, 0.0f), colorYellow),
+                new VertexPositionColor(new Vector3(0.37f, -0.5f, 0.0f), colorRed),
+                new VertexPositionColor(new Vector3(0.5f, -0.6f, 0.0f), colorRed),
+                new VertexPositionColor(new Vector3(0.6f, 0.8f, 0.0f), colorGreen),
+                new VertexPositionColor(new Vector3(0.8f, 1.0f, 0.0f), colorGreen)
+            };
+
+            vertexBufferSignalSize = signalVertices.Length * Unsafe.SizeOf<VertexPositionColor>();
+            vertexBufferSignal = device.CreateCommittedResource<ID3D12Resource>(
+                new HeapProperties(HeapType.Upload),
+                HeapFlags.None,
+                ResourceDescription.Buffer((ulong)vertexBufferSignalSize),
+                ResourceStates.GenericRead);
+
+            unsafe
+            {
+                IntPtr bufferData2 = (IntPtr)vertexBufferSignal.Map<VertexPositionColor>(0);
+                ReadOnlySpan<VertexPositionColor> src2 = new ReadOnlySpan<VertexPositionColor>(signalVertices);
+                MemoryHelpers.CopyMemory(bufferData2, src2);
+                vertexBufferSignal.Unmap(0);
+            }
+
+            VertexPositionColor[] pointVertices = new VertexPositionColor[]
+            {
+                new VertexPositionColor(new Vector3(-0.8f, 0.8f, 0.0f), colorGreen),
+                new VertexPositionColor(new Vector3(-0.8f, 0.7f, 0.0f), colorGreen),
+                new VertexPositionColor(new Vector3(-0.8f, 0.6f, 0.0f), colorGreen),
+                new VertexPositionColor(new Vector3(-0.8f, 0.5f, 0.0f), colorGreen),
+                new VertexPositionColor(new Vector3(-0.8f, 0.4f, 0.0f), colorGreen)
+            };
+
+            vertexBufferPointSize = pointVertices.Length * Unsafe.SizeOf<VertexPositionColor>();
+            vertexBufferPoint = device.CreateCommittedResource<ID3D12Resource>(
+                new HeapProperties(HeapType.Upload),
+                HeapFlags.None,
+                ResourceDescription.Buffer((ulong)vertexBufferPointSize),
+                ResourceStates.GenericRead);
+
+            unsafe
+            {
+                IntPtr bufferData3 = (IntPtr)vertexBufferPoint.Map<VertexPositionColor>(0);
+                ReadOnlySpan<VertexPositionColor> src3 = new ReadOnlySpan<VertexPositionColor>(pointVertices);
+                MemoryHelpers.CopyMemory(bufferData3, src3);
+                vertexBufferSignal.Unmap(0);
             }
 
             // Create a fence and a event handle (A fence is used to synchronize the CPU with the GPU)
@@ -272,12 +318,21 @@ namespace DirectX3D12Example
             WaitForPreviousFrame();
         }
 
+        private Random random = new Random();
         /// <summary>
         /// Update frame-based values.
         /// </summary>
         public void OnUpdate()
         {
-            // TODO
+            // TODO: Update with constant buffer here
+            try
+            {
+                text += ".";
+            }
+            catch (Exception e)
+            {
+                Debug.WriteLine(device.DeviceRemovedReason.Description);
+            }
         }
 
         /// <summary>
@@ -294,6 +349,17 @@ namespace DirectX3D12Example
             // In diesem Fall nutzt man die Methode ExecuteCommandLists und zusätzlich Signal(fence, value) und Wait(fence, value),
             // um die Synchronisierung zwischen den Listen sicherzustellen!
             commandQueue!.ExecuteCommandList(commandList!);
+
+            // start drawing with Direct2D and DirectWrite
+            hwndRenderTarget.BeginDraw();
+            hwndRenderTarget.Transform = Matrix3x2.Identity;
+            hwndRenderTarget.Clear(clearColor);
+
+            var blackBrush = hwndRenderTarget.CreateSolidColorBrush(colorYellow);
+            var layoutRect = new Rect(0, 0, controls[1].Width, controls[1].Height);
+
+            hwndRenderTarget.DrawText(text, textFormat, layoutRect, blackBrush);
+            hwndRenderTarget.EndDraw();
 
             // Present the frame
             Result result = SwapChain!.Present(1, PresentFlags.None);
@@ -315,7 +381,9 @@ namespace DirectX3D12Example
             commandList.SetGraphicsRootSignature(rootSignature);
 
             // Set the viewport and scissor rectangles
+            // (transformation of nomalized device space into screen space)
             commandList.RSSetViewport(new Viewport(controls[1].ClientSize.Width, controls[1].ClientSize.Height));
+            // Defines the valid drawing area
             commandList.RSSetScissorRect(controls[1].ClientSize.Width, controls[1].ClientSize.Height);
 
             // Set a resource barrier, idicating the back buffer is to be used as a render target
@@ -325,8 +393,6 @@ namespace DirectX3D12Example
             CpuDescriptorHandle rtv = rtvHeap!.GetCPUDescriptorHandleForHeapStart();
             rtv += backbufferIndex * rtvDescriptorSize;
 
-            Color4 clearColor = new Color4(0.0f, 0.2f, 0.4f, 1.0f);
-
             var renderPassDesc = new RenderPassRenderTargetDescription(rtv,
                 new RenderPassBeginningAccess(new ClearValue(Format.R8G8B8A8_UNorm, clearColor)),
                 new RenderPassEndingAccess(RenderPassEndingAccessType.Preserve)
@@ -334,11 +400,19 @@ namespace DirectX3D12Example
 
             commandList.BeginRenderPass(renderPassDesc);
 
-            commandList.IASetPrimitiveTopology(PrimitiveTopology.TriangleList);
             int stride = Unsafe.SizeOf<VertexPositionColor>();
-            int vertexBufferSize = 3 * stride;
-            commandList.IASetVertexBuffers(0, new VertexBufferView(vertexBuffer!.GPUVirtualAddress, vertexBufferSize, stride));
+
+            commandList.IASetPrimitiveTopology(PrimitiveTopology.TriangleList);
+            commandList.IASetVertexBuffers(0, new VertexBufferView(vertexBufferTriangle!.GPUVirtualAddress, vertexBufferTriangleSize, stride));
             commandList.DrawInstanced(3, 1, 0, 0);
+
+            commandList.IASetPrimitiveTopology(PrimitiveTopology.LineStrip);
+            commandList.IASetVertexBuffers(0, new VertexBufferView(vertexBufferSignal!.GPUVirtualAddress, vertexBufferSignalSize, stride));
+            commandList.DrawInstanced(10, 1, 0, 0);
+
+            commandList.IASetPrimitiveTopology(PrimitiveTopology.PointList);
+            commandList.IASetVertexBuffers(0, new VertexBufferView(vertexBufferPoint!.GPUVirtualAddress, vertexBufferPointSize, stride));
+            commandList.DrawInstanced(5, 1, 0, 0);
 
             commandList.EndRenderPass();
 
@@ -348,9 +422,59 @@ namespace DirectX3D12Example
             commandList.Close();
         }
 
-        internal void ChangeDevice(bool checkState)
+        private void LoadDirectWrite()
         {
-            this.useWarpDevice = checkState;
+            // configure Direct2D and DirectWrite
+            var writeFactory = DWrite.DWriteCreateFactory<IDWriteFactory>();
+            var direct2DFactory = D2D1.D2D1CreateFactory<ID2D1Factory>();
+            textFormat = writeFactory.CreateTextFormat("Arial", 26.0f);
+            var test = writeFactory.GetSystemFontCollection(false);
+
+            textFormat.TextAlignment = TextAlignment.Center;
+            textFormat.ParagraphAlignment = ParagraphAlignment.Center;
+            var renderTargetProperties = new RenderTargetProperties();
+            var hwndRenderTargetProperties = new HwndRenderTargetProperties();
+            hwndRenderTargetProperties.Hwnd = controls[2].Handle;
+            hwndRenderTargetProperties.PixelSize = new SizeI(controls[2].Right - controls[2].Left, controls[2].Bottom - controls[2].Top);
+            hwndRenderTarget = direct2DFactory.CreateHwndRenderTarget(renderTargetProperties, hwndRenderTargetProperties);
+        }
+
+        private void CreatePointTexture()
+        {
+            int size = 30;
+            Bitmap bitmap = new Bitmap(size, size);
+            Graphics graphics = Graphics.FromImage(bitmap);
+            graphics.Clear(System.Drawing.Color.Transparent);
+            graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+            Pen pen = new Pen(System.Drawing.Color.White, 1f);
+
+            graphics.FillEllipse(Brushes.White, new Rectangle(0, 0, size - 2, size - 2));
+
+            MemoryStream strm = new MemoryStream();
+            bitmap.Save(strm, System.Drawing.Imaging.ImageFormat.Bmp);
+            strm.Position = 0;
+
+            ResourceDescription resourceDescription = new ResourceDescription();
+            resourceDescription.Dimension = ResourceDimension.Texture2D;
+            resourceDescription.Width = (ulong)size;
+            resourceDescription.Height = size;
+            resourceDescription.DepthOrArraySize = 1;
+            resourceDescription.MipLevels = 1;
+            resourceDescription.Format = Format.R8G8B8A8_UNorm;
+            resourceDescription.SampleDescription = new SampleDescription(1, 0);
+            resourceDescription.Layout = TextureLayout.Unknown;
+
+            var texture = device.CreateCommittedResource<ID3D12Resource>(
+                new HeapProperties(HeapType.Upload),
+                HeapFlags.None,
+                resourceDescription,
+                ResourceStates.None);
+            //Texture texture = Texture.FromStream(device, strm, Usage.None, Pool.Default);
+
+            // Texture texture = Texture.FromStream(device, strm, bitmap.Width, bitmap.Height, 1, Usage.None, Format.A8B8G8R8, Pool.Default, Filter.None, Filter.None, 0);
+            bitmap.Dispose();
+            strm.Dispose();
+            pen.Dispose();
         }
 
         private static byte[] CompileBytecode(DxcShaderStage stage, string shaderName, string entryPoint)
@@ -374,7 +498,7 @@ namespace DirectX3D12Example
         {
             WaitForPreviousFrame();
 
-            vertexBuffer?.Dispose();
+            vertexBufferTriangle?.Dispose();
 
             for (int i = 0; i < BufferCount; i++)
             {
@@ -389,8 +513,10 @@ namespace DirectX3D12Example
             SwapChain?.Dispose();
             frameFence?.Dispose();
             commandQueue?.Dispose();
+
+            // debugDevice?.ReportLiveDeviceObjects(ReportLiveDeviceObjectFlags.Summary);
             device?.Dispose();
-            DXGIFactory?.Dispose();
+            debugDevice?.Dispose();
         }
 
         private void WaitForPreviousFrame()

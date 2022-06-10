@@ -4,6 +4,6 @@ struct VSInput {
 };
 
 struct PSInput {
-    float4 Position : SV_POSITION;
+    float4 Position : SV_POSITION; // SV steht fuer system value
     float4 Color : COLOR;
 };

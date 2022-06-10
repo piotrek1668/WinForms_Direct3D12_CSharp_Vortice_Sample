@@ -1,16 +1,18 @@
 #include "Common.hlsli"
 
+// input layout -> vertex shader
 // vertex shader main function
 PSInput VSMain(VSInput input) {
-    PSInput result;
+    PSInput vertexOut;
     
-    result.Position = input.Position;
-    result.Color = input.Color;
+    vertexOut.Position = input.Position;
+    vertexOut.Color = input.Color;
     
-    return result;
+    return vertexOut;
 }
 
-/// Pixel shader main function
+// rasterizer -> pixel shader
+// Pixel shader main function
 float4 PSMain(PSInput input) : SV_TARGET {
     return input.Color;
 }
