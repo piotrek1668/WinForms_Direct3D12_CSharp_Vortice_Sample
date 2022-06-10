@@ -81,6 +81,8 @@ namespace DirectX3D12Example
 
         #endregion
 
+        #region Methods
+
         public void OnInit()
         {
             this.LoadPipeline();
@@ -232,7 +234,7 @@ namespace DirectX3D12Example
             // tesselator, rasterizer and output merger).
             pipelineState = device.CreatePipelineState(pipelineStateStream);
 
-            // Create the command list, the close the command list
+            // Create the command list, then close the command list
             commandList = device.CreateCommandList<ID3D12GraphicsCommandList4>(CommandListType.Direct, commandAllocators[0], pipelineState);
             commandList.Close(); // always close command list after using it
 
@@ -513,5 +515,7 @@ namespace DirectX3D12Example
             frameFence.SetEventOnCompletion(frameCount, frameFenceEvent);
             frameFenceEvent.WaitOne();
         }
+
+        #endregion
     }
 }
