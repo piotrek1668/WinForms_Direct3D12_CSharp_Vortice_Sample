@@ -1,21 +1,19 @@
 ﻿using SharpGen.Runtime;
-using System.Diagnostics;
 using System.Numerics;
 using System.Runtime.CompilerServices;
-using Vortice.DirectWrite;
 using Vortice.Direct2D1;
 using Vortice.Direct3D;
 using Vortice.Direct3D12;
 using Vortice.Direct3D12.Debug;
+using Vortice.DirectWrite;
 using Vortice.Dxc;
 using Vortice.DXGI;
-using Vortice.WIC;
 using Vortice.Mathematics;
 using static Vortice.Direct3D12.D3D12;
-using ResultCode = Vortice.DXGI.ResultCode;
-using InputElementDescription = Vortice.Direct3D12.InputElementDescription;
 using BlendDescription = Vortice.Direct3D12.BlendDescription;
 using FeatureLevel = Vortice.Direct3D.FeatureLevel;
+using InputElementDescription = Vortice.Direct3D12.InputElementDescription;
+using ResultCode = Vortice.DXGI.ResultCode;
 
 namespace DirectX3D12Example
 {
@@ -84,7 +82,6 @@ namespace DirectX3D12Example
 
         public void OnInit()
         {
-            this.LoadDirectWrite();
             this.LoadPipeline();
             this.LoadAssets();
             this.initialized = true;
@@ -101,13 +98,13 @@ namespace DirectX3D12Example
                 return;
             }
 
-            #if DEBUG
+#if DEBUG
             // Enable the debug layouter (always before device creation)
             if (D3D12GetDebugInterface<ID3D12Debug3>(out var debugController).Success)
             {
                 debugController?.EnableDebugLayer();
             }
-            #endif
+#endif
 
             // Create the device
             GIFactory factory = new GIFactory();
@@ -131,7 +128,6 @@ namespace DirectX3D12Example
             }
 
             debugDevice = new ID3D12DebugDevice2((IntPtr)device);
-
             adapter.Dispose();
 
             // Create Command queue
@@ -163,6 +159,20 @@ namespace DirectX3D12Example
 
             factory.Dispose();
 
+            // configure Direct2D and DirectWrite
+            var writeFactory = DWrite.DWriteCreateFactory<IDWriteFactory>();
+            var direct2DFactory = D2D1.D2D1CreateFactory<ID2D1Factory>();
+            textFormat = writeFactory.CreateTextFormat("Arial", 26.0f);
+            var test = writeFactory.GetSystemFontCollection(false);
+
+            textFormat.TextAlignment = TextAlignment.Center;
+            textFormat.ParagraphAlignment = ParagraphAlignment.Center;
+            var renderTargetProperties = new RenderTargetProperties();
+            var hwndRenderTargetProperties = new HwndRenderTargetProperties();
+            hwndRenderTargetProperties.Hwnd = controls[2].Handle;
+            hwndRenderTargetProperties.PixelSize = new SizeI(controls[2].Right - controls[2].Left, controls[2].Bottom - controls[2].Top);
+            hwndRenderTarget = direct2DFactory.CreateHwndRenderTarget(renderTargetProperties, hwndRenderTargetProperties);
+
             // Create a render target view (RTV) descriptor heap
             // A descriptor heap can be thought of as an array of descriptors. Where each descriptor fully describes an object to the GPU.
             rtvHeap = device.CreateDescriptorHeap<ID3D12DescriptorHeap>(new DescriptorHeapDescription(DescriptorHeapType.RenderTargetView, BufferCount));
@@ -180,7 +190,7 @@ namespace DirectX3D12Example
 
                 rtvHandle += rtvDescriptorSize;
             }
-                
+
             // Create a command allocator (A command allocator manages the underlying storage for command lists and bundles)
             commandAllocators = new ID3D12CommandAllocator[BufferCount];
             for (int i = 0; i < BufferCount; i++)
@@ -189,7 +199,7 @@ namespace DirectX3D12Example
             }
         }
 
-        private void LoadAssets()
+        private unsafe void LoadAssets()
         {
             // Create an empty root signature
             RootSignatureDescription1 rootSignatureDesc = new(RootSignatureFlags.AllowInputAssemblerInputLayout);
@@ -249,14 +259,11 @@ namespace DirectX3D12Example
                 ResourceDescription.Buffer((ulong)vertexBufferTriangleSize),
                 ResourceStates.GenericRead);
 
-            unsafe
-            {
-                IntPtr bufferData = (IntPtr)vertexBufferTriangle.Map<VertexPositionColor>(0);
-                ReadOnlySpan<VertexPositionColor> src = new ReadOnlySpan<VertexPositionColor>(triangleVertices);
-                MemoryHelpers.CopyMemory(bufferData, src);
-                vertexBufferTriangle.Unmap(0);
-            }
-            
+            IntPtr bufferData = (IntPtr)vertexBufferTriangle.Map<VertexPositionColor>(0);
+            ReadOnlySpan<VertexPositionColor> src = new ReadOnlySpan<VertexPositionColor>(triangleVertices);
+            MemoryHelpers.CopyMemory(bufferData, src);
+            vertexBufferTriangle.Unmap(0);
+
             VertexPositionColor[] signalVertices = new VertexPositionColor[]
             {
                 new VertexPositionColor(new Vector3(-0.7f, -0.5f, 0.0f), colorYellow),
@@ -278,13 +285,10 @@ namespace DirectX3D12Example
                 ResourceDescription.Buffer((ulong)vertexBufferSignalSize),
                 ResourceStates.GenericRead);
 
-            unsafe
-            {
-                IntPtr bufferData2 = (IntPtr)vertexBufferSignal.Map<VertexPositionColor>(0);
-                ReadOnlySpan<VertexPositionColor> src2 = new ReadOnlySpan<VertexPositionColor>(signalVertices);
-                MemoryHelpers.CopyMemory(bufferData2, src2);
-                vertexBufferSignal.Unmap(0);
-            }
+            IntPtr bufferData2 = (IntPtr)vertexBufferSignal.Map<VertexPositionColor>(0);
+            ReadOnlySpan<VertexPositionColor> src2 = new ReadOnlySpan<VertexPositionColor>(signalVertices);
+            MemoryHelpers.CopyMemory(bufferData2, src2);
+            vertexBufferSignal.Unmap(0);
 
             VertexPositionColor[] pointVertices = new VertexPositionColor[]
             {
@@ -302,13 +306,10 @@ namespace DirectX3D12Example
                 ResourceDescription.Buffer((ulong)vertexBufferPointSize),
                 ResourceStates.GenericRead);
 
-            unsafe
-            {
-                IntPtr bufferData3 = (IntPtr)vertexBufferPoint.Map<VertexPositionColor>(0);
-                ReadOnlySpan<VertexPositionColor> src3 = new ReadOnlySpan<VertexPositionColor>(pointVertices);
-                MemoryHelpers.CopyMemory(bufferData3, src3);
-                vertexBufferSignal.Unmap(0);
-            }
+            IntPtr bufferData3 = (IntPtr)vertexBufferPoint.Map<VertexPositionColor>(0);
+            ReadOnlySpan<VertexPositionColor> src3 = new ReadOnlySpan<VertexPositionColor>(pointVertices);
+            MemoryHelpers.CopyMemory(bufferData3, src3);
+            vertexBufferSignal.Unmap(0);
 
             // Create a fence and a event handle (A fence is used to synchronize the CPU with the GPU)
             frameFence = device.CreateFence<ID3D12Fence>(); // Initial value == 0
@@ -318,21 +319,12 @@ namespace DirectX3D12Example
             WaitForPreviousFrame();
         }
 
-        private Random random = new Random();
         /// <summary>
         /// Update frame-based values.
         /// </summary>
         public void OnUpdate()
         {
             // TODO: Update with constant buffer here
-            try
-            {
-                text += ".";
-            }
-            catch (Exception e)
-            {
-                Debug.WriteLine(device.DeviceRemovedReason.Description);
-            }
         }
 
         /// <summary>
@@ -420,23 +412,6 @@ namespace DirectX3D12Example
             commandList.ResourceBarrierTransition(renderTargets[backbufferIndex], ResourceStates.RenderTarget, ResourceStates.Present);
             commandList.EndEvent();
             commandList.Close();
-        }
-
-        private void LoadDirectWrite()
-        {
-            // configure Direct2D and DirectWrite
-            var writeFactory = DWrite.DWriteCreateFactory<IDWriteFactory>();
-            var direct2DFactory = D2D1.D2D1CreateFactory<ID2D1Factory>();
-            textFormat = writeFactory.CreateTextFormat("Arial", 26.0f);
-            var test = writeFactory.GetSystemFontCollection(false);
-
-            textFormat.TextAlignment = TextAlignment.Center;
-            textFormat.ParagraphAlignment = ParagraphAlignment.Center;
-            var renderTargetProperties = new RenderTargetProperties();
-            var hwndRenderTargetProperties = new HwndRenderTargetProperties();
-            hwndRenderTargetProperties.Hwnd = controls[2].Handle;
-            hwndRenderTargetProperties.PixelSize = new SizeI(controls[2].Right - controls[2].Left, controls[2].Bottom - controls[2].Top);
-            hwndRenderTarget = direct2DFactory.CreateHwndRenderTarget(renderTargetProperties, hwndRenderTargetProperties);
         }
 
         private void CreatePointTexture()
