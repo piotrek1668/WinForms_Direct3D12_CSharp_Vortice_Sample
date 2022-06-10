@@ -23,7 +23,7 @@ namespace DirectX3D12Example
 
         private const int BufferCount = 2;
 
-        private readonly MainWindow form;
+        private readonly MainWindow mainWindow;
         private readonly Control leftControl;
         private readonly Control rightControl;
         private ID3D12Device2 device;
@@ -77,7 +77,7 @@ namespace DirectX3D12Example
 
         public D3D12GraphicsDevice(MainWindow form, Control control1, Control control2)
         {
-            this.form = form;
+            this.mainWindow = form;
             this.leftControl = control1;
             this.rightControl = control2;
         }
@@ -121,7 +121,7 @@ namespace DirectX3D12Example
                 {
                     this.maxSupportedFeatureLevel = tempDevice.CheckMaxSupportedFeatureLevel();
                     string text = $"FeatureLevel: '{this.maxSupportedFeatureLevel}'; Device: '{adapter.Description.Description}'";
-                    form.UpdateLabelText(text);
+                    mainWindow.UpdateLabelText(text);
 
                     // create device with max supported feature level
                     if (D3D12.D3D12CreateDevice(adapter, this.maxSupportedFeatureLevel, out this.device).Failure)
@@ -358,7 +358,7 @@ namespace DirectX3D12Example
             hwndRenderTarget.Clear(clearColor);
 
             var blackBrush = hwndRenderTarget.CreateSolidColorBrush(colorYellow);
-            var layoutRect = new Rect(0, 0, leftControl.Width, leftControl.Height);
+            var layoutRect = new Rect(0, 0, rightControl.Width, rightControl.Height);
 
             hwndRenderTarget.DrawText(D3D12GraphicsDevice.Text, textFormat, layoutRect, blackBrush);
             hwndRenderTarget.EndDraw();

@@ -59,7 +59,6 @@ namespace DirectX3D12Example
             return null;
         }
 
-
         private class SourceCodeBlob : IDisposable
         {
             private GCHandle _dataPointer;
