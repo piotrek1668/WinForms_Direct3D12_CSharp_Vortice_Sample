@@ -14,16 +14,6 @@ namespace DirectX3D12Example
             _includeDirectories = includeDirectories;
         }
 
-        /*  protected override void Dispose(bool disposing)
-          {
-              foreach (var pinnedObject in _sourceFiles.Values)
-                  pinnedObject?.Dispose();
-
-              _sourceFiles.Clear();
-
-              base.Dispose(disposing);
-          }*/
-
         public Result LoadSource(string fileName, out IDxcBlob includeSource)
         {
             if (fileName.StartsWith("./"))

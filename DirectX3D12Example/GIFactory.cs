@@ -4,13 +4,12 @@ namespace DirectX3D12Example
 {
     internal class GIFactory : IDisposable
     {
-        private IDXGIFactory4 factory4;
-        private bool validation = false;
+        private readonly IDXGIFactory4 factory4;
 
         public GIFactory()
         {
             #if DEBUG
-            validation = true;
+            const bool validation = true;
             #endif
 
             this.factory4 = DXGI.CreateDXGIFactory2<IDXGIFactory4>(validation);
@@ -21,7 +20,7 @@ namespace DirectX3D12Example
             }
         }
 
-        public IDXGIFactory4 DXGIFactory4 { get => this.factory4; }
+        public IDXGIFactory4 DXGIFactory4 => this.factory4;
 
         /// <summary>
         /// Retrieve the desired adapter. Will give most performant or default adapter instead.
@@ -33,7 +32,6 @@ namespace DirectX3D12Example
             {
                 AdapterDescription1 desc = adapter.Description1;
 
-
                 // Don't select the Basic Render Driver adapter.
                 if ((desc.Flags & AdapterFlags.Software) != AdapterFlags.None)
                 {
@@ -41,10 +39,7 @@ namespace DirectX3D12Example
                     continue;
                 }
 
-                if (adapter != null)
-                {
-                    return adapter;
-                }
+                return adapter;
             }
 
             // try get WARP adapter
@@ -65,9 +60,8 @@ namespace DirectX3D12Example
         /// <returns>True if allowed.</returns>
         public bool CheckTearingSupport()
         {
-            bool tearingAllowed;
             var factory5 = DXGI.CreateDXGIFactory2<IDXGIFactory5>(false);
-            tearingAllowed = factory5.PresentAllowTearing;
+            bool tearingAllowed = factory5.PresentAllowTearing;
             factory5.Dispose();
 
             return tearingAllowed;
@@ -75,7 +69,7 @@ namespace DirectX3D12Example
 
         public void Dispose()
         {
-            this.factory4?.Dispose();
+            this.factory4.Dispose();
         }
     }
 }

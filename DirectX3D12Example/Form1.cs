@@ -91,7 +91,7 @@ namespace DirectX3D12Example
 
         private void Timer_Tick(object? sender, EventArgs e)
         {
-            if (this.graphicDevice != null && this.graphicDevice.initialized)
+            if (this.graphicDevice != null && this.graphicDevice.Initialized)
             {
                 graphicDevice?.OnUpdate();
                 graphicDevice?.OnRender();
