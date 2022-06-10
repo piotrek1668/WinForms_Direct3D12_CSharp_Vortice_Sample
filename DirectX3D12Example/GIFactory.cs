@@ -58,7 +58,7 @@ namespace DirectX3D12Example
         /// Check if tearing is supported.
         /// </summary>
         /// <returns>True if allowed.</returns>
-        public bool CheckTearingSupport()
+        public static bool CheckTearingSupport()
         {
             var factory5 = DXGI.CreateDXGIFactory2<IDXGIFactory5>(false);
             bool tearingAllowed = factory5.PresentAllowTearing;

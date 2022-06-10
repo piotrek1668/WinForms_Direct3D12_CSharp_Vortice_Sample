@@ -23,7 +23,9 @@ namespace DirectX3D12Example
 
         private const int BufferCount = 2;
 
-        private readonly Control[] controls;
+        private readonly MainWindow form;
+        private readonly Control leftControl;
+        private readonly Control rightControl;
         private ID3D12Device2 device;
         private ID3D12DebugDevice2 debugDevice;
         private ID3D12DescriptorHeap rtvHeap;
@@ -56,10 +58,10 @@ namespace DirectX3D12Example
         private IDWriteTextFormat textFormat;
         private const string Text = "Hello, DirectWrite!";
 
-        private readonly Color4 clearColor = new Color4(0.0f, 0.2f, 0.4f, 1.0f);
-        private readonly Color4 colorYellow = new Color4(1.0f, 1.0f, 0.0f, 1.0f);
-        private readonly Color4 colorRed = new Color4(1.0f, 0.0f, 0.0f, 1.0f);
-        private readonly Color4 colorGreen = new Color4(0.0f, 1.0f, 0.0f, 1.0f);
+        private readonly Color4 clearColor = new(0.0f, 0.2f, 0.4f, 1.0f);
+        private readonly Color4 colorYellow = new(1.0f, 1.0f, 0.0f, 1.0f);
+        private readonly Color4 colorRed = new(1.0f, 0.0f, 0.0f, 1.0f);
+        private readonly Color4 colorGreen = new(0.0f, 1.0f, 0.0f, 1.0f);
 
         #endregion
 
@@ -73,9 +75,11 @@ namespace DirectX3D12Example
 
         #region Constructor
 
-        public D3D12GraphicsDevice(Control[] controls)
+        public D3D12GraphicsDevice(MainWindow form, Control control1, Control control2)
         {
-            this.controls = controls;
+            this.form = form;
+            this.leftControl = control1;
+            this.rightControl = control2;
         }
 
         #endregion
@@ -107,7 +111,7 @@ namespace DirectX3D12Example
 #endif
 
             // Create the device
-            GIFactory factory = new GIFactory();
+            GIFactory factory = new();
             IDXGIAdapter adapter = factory.GetAdapter();
 
             // Choosing cpu possible (High-Performance for Desktop, Lower-Performance for Notebook, ...)
@@ -117,7 +121,7 @@ namespace DirectX3D12Example
                 {
                     this.maxSupportedFeatureLevel = tempDevice.CheckMaxSupportedFeatureLevel();
                     string text = $"FeatureLevel: '{this.maxSupportedFeatureLevel}'; Device: '{adapter.Description.Description}'";
-                    ((Form1)this.controls[0]).UpdateLabelText(text);
+                    form.UpdateLabelText(text);
 
                     // create device with max supported feature level
                     if (D3D12.D3D12CreateDevice(adapter, this.maxSupportedFeatureLevel, out this.device).Failure)
@@ -140,8 +144,8 @@ namespace DirectX3D12Example
             SwapChainDescription1 swapChainDesc = new()
             {
                 BufferCount = D3D12GraphicsDevice.BufferCount, // DoubleBuffering
-                Width = controls[1].Bounds.Right - controls[1].Bounds.Left,
-                Height = controls[1].Bounds.Bottom - controls[1].Bounds.Top,
+                Width = leftControl.Bounds.Right - leftControl.Bounds.Left,
+                Height = leftControl.Bounds.Bottom - leftControl.Bounds.Top,
                 Format = Format.R8G8B8A8_UNorm,
                 BufferUsage = Usage.RenderTargetOutput, // usage: render buffer content on output monitor
                 SwapEffect = SwapEffect.FlipSequential,
@@ -150,9 +154,9 @@ namespace DirectX3D12Example
             };
 
             // Create swap chain
-            using (IDXGISwapChain1 swapChain = factory.DXGIFactory4.CreateSwapChainForHwnd(CommandQueue, this.controls[1].Handle, swapChainDesc))
+            using (IDXGISwapChain1 swapChain = factory.DXGIFactory4.CreateSwapChainForHwnd(CommandQueue, this.leftControl.Handle, swapChainDesc))
             {
-                factory.DXGIFactory4.MakeWindowAssociation(controls[1].Handle, WindowAssociationFlags.IgnoreAltEnter);
+                factory.DXGIFactory4.MakeWindowAssociation(leftControl.Handle, WindowAssociationFlags.IgnoreAltEnter);
 
                 SwapChain = swapChain.QueryInterface<IDXGISwapChain3>();
                 backbufferIndex = SwapChain.CurrentBackBufferIndex;
@@ -168,9 +172,12 @@ namespace DirectX3D12Example
             textFormat.TextAlignment = TextAlignment.Center;
             textFormat.ParagraphAlignment = ParagraphAlignment.Center;
             var renderTargetProperties = new RenderTargetProperties();
-            var hwndRenderTargetProperties = new HwndRenderTargetProperties();
-            hwndRenderTargetProperties.Hwnd = controls[2].Handle;
-            hwndRenderTargetProperties.PixelSize = new SizeI(controls[2].Right - controls[2].Left, controls[2].Bottom - controls[2].Top);
+            HwndRenderTargetProperties hwndRenderTargetProperties = new()
+            {
+                Hwnd = rightControl.Handle,
+                PixelSize = new SizeI(rightControl.Right - rightControl.Left, rightControl.Bottom - rightControl.Top)
+            };
+
             hwndRenderTarget = direct2DFactory.CreateHwndRenderTarget(renderTargetProperties, hwndRenderTargetProperties);
 
             // Create a render target view (RTV) descriptor heap
@@ -211,7 +218,7 @@ namespace DirectX3D12Example
 
             // Create vertex input layout
             // Create a pipeline state object description, then create the object
-            PipelineStateStream pipelineStateStream = new PipelineStateStream
+            PipelineStateStream pipelineStateStream = new()
             {
                 RootSignature = rootSignature,
                 VertexShader = new ShaderBytecode(vertexShaderByteCode),
@@ -336,22 +343,25 @@ namespace DirectX3D12Example
             // um die Synchronisierung zwischen den Listen sicherzustellen!
             CommandQueue.ExecuteCommandList(commandList);
 
+            // Present the frame
+            Result result = SwapChain.Present(1, PresentFlags.None);
+            if (result.Failure && (result.Code == ResultCode.DeviceRemoved)) return;
+
+            WaitForPreviousFrame();
+        }
+
+        public void OnRender2D()
+        {
             // start drawing text with Direct2D and DirectWrite
             hwndRenderTarget.BeginDraw();
             hwndRenderTarget.Transform = Matrix3x2.Identity;
             hwndRenderTarget.Clear(clearColor);
 
             var blackBrush = hwndRenderTarget.CreateSolidColorBrush(colorYellow);
-            var layoutRect = new Rect(0, 0, controls[1].Width, controls[1].Height);
+            var layoutRect = new Rect(0, 0, leftControl.Width, leftControl.Height);
 
             hwndRenderTarget.DrawText(D3D12GraphicsDevice.Text, textFormat, layoutRect, blackBrush);
             hwndRenderTarget.EndDraw();
-
-            // Present the frame
-            Result result = SwapChain.Present(1, PresentFlags.None);
-            if (result.Failure && (result.Code == ResultCode.DeviceRemoved)) return;
-
-            WaitForPreviousFrame();
         }
 
         private void PopulateCommandList()
@@ -368,9 +378,9 @@ namespace DirectX3D12Example
 
             // Set the viewport and scissor rectangles
             // (transformation of normalized device space into screen space)
-            commandList.RSSetViewport(new Viewport(controls[1].ClientSize.Width, controls[1].ClientSize.Height));
+            commandList.RSSetViewport(new Viewport(leftControl.ClientSize.Width, leftControl.ClientSize.Height));
             // Defines the valid drawing area
-            commandList.RSSetScissorRect(controls[1].ClientSize.Width, controls[1].ClientSize.Height);
+            commandList.RSSetScissorRect(leftControl.ClientSize.Width, leftControl.ClientSize.Height);
 
             // Set a resource barrier, idicating the back buffer is to be used as a render target
             // (Resource barriers are used to manage resource transitions.)

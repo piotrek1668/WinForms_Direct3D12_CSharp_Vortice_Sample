@@ -12,7 +12,7 @@ namespace DirectX3D12Example
             // see https://aka.ms/applicationconfiguration.
             ApplicationConfiguration.Initialize();
 
-            Form form = new Form1();
+            Form form = new MainWindow();
 
             Application.Run(form);
         }

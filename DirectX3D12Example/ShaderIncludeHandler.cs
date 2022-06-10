@@ -1,4 +1,7 @@
-﻿using SharpGen.Runtime;
+﻿// Copyright (c) Amer Koleci and contributors.
+// Distributed under the MIT license. See the LICENSE file in the project root for more information.
+
+using SharpGen.Runtime;
 using System.Runtime.InteropServices;
 using Vortice.Dxc;
 
@@ -7,17 +10,17 @@ namespace DirectX3D12Example
     internal class ShaderIncludeHandler : CallbackBase, IDxcIncludeHandler
     {
         private readonly string[] _includeDirectories;
-        private readonly Dictionary<string, SourceCodeBlob> _sourceFiles = new Dictionary<string, SourceCodeBlob>();
+        private readonly Dictionary<string, SourceCodeBlob> _sourceFiles = new();
 
         public ShaderIncludeHandler(params string[] includeDirectories)
         {
             _includeDirectories = includeDirectories;
         }
 
-        public Result LoadSource(string fileName, out IDxcBlob includeSource)
+        public Result LoadSource(string fileName, out IDxcBlob? includeSource)
         {
             if (fileName.StartsWith("./"))
-                fileName = fileName.Substring(2);
+                fileName = fileName[2..];
 
             var includeFile = GetFilePath(fileName);
 
@@ -28,7 +31,7 @@ namespace DirectX3D12Example
                 return Result.Fail;
             }
 
-            if (!_sourceFiles.TryGetValue(includeFile, out SourceCodeBlob sourceCodeBlob))
+            if (!_sourceFiles.TryGetValue(includeFile, out SourceCodeBlob? sourceCodeBlob))
             {
                 byte[] data = NewMethod(includeFile);
 
@@ -59,7 +62,6 @@ namespace DirectX3D12Example
 
         private class SourceCodeBlob : IDisposable
         {
-            private byte[] _data;
             private GCHandle _dataPointer;
             private IDxcBlobEncoding? _blob;
 
@@ -67,8 +69,6 @@ namespace DirectX3D12Example
 
             public SourceCodeBlob(byte[] data)
             {
-                _data = data;
-
                 _dataPointer = GCHandle.Alloc(data, GCHandleType.Pinned);
 
                 _blob = DxcCompiler.Utils.CreateBlob(_dataPointer.AddrOfPinnedObject(), data.Length, Dxc.DXC_CP_UTF8);
@@ -76,7 +76,6 @@ namespace DirectX3D12Example
 
             public void Dispose()
             {
-                //_blob?.Dispose();
                 _blob = null;
 
                 if (_dataPointer.IsAllocated)
