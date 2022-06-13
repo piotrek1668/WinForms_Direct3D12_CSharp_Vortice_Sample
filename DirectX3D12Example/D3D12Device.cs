@@ -138,6 +138,11 @@ namespace DirectX3D12Example
             adapter.Dispose();
 
             // Create Command queue
+            if (this.device == null)
+            {
+                return;
+            }
+
             CommandQueue = device.CreateCommandQueue<ID3D12CommandQueue>(CommandListType.Direct);
             CommandQueue.Name = "Command Queue";
 
@@ -246,11 +251,10 @@ namespace DirectX3D12Example
 
             // Create and load the vertex buffers
             // Create the vertex buffer views
-            VertexPositionColor[] triangleVertices = new VertexPositionColor[]
-            {
-                  new VertexPositionColor(new Vector3(0f, 1.0f, 0.0f), new Color4(1.0f, 0.0f, 0.0f, 1.0f)),
-                  new VertexPositionColor(new Vector3(1.0f, -1.0f, 0.0f), new Color4(0.0f, 1.0f, 0.0f, 1.0f)),
-                  new VertexPositionColor(new Vector3(-1.0f, -1.0f, 0.0f), new Color4(0.0f, 0.0f, 1.0f, 1.0f))
+            VertexPositionColor[] triangleVertices = {
+                  new(new Vector3(0f, 1.0f, 0.0f), new Color4(1.0f, 0.0f, 0.0f, 1.0f)),
+                  new(new Vector3(1.0f, -1.0f, 0.0f), new Color4(0.0f, 1.0f, 0.0f, 1.0f)),
+                  new(new Vector3(-1.0f, -1.0f, 0.0f), new Color4(0.0f, 0.0f, 1.0f, 1.0f))
             };
 
             vertexBufferTriangleSize = triangleVertices.Length * Unsafe.SizeOf<VertexPositionColor>();
@@ -267,16 +271,16 @@ namespace DirectX3D12Example
 
             VertexPositionColor[] signalVertices = new VertexPositionColor[]
             {
-                new VertexPositionColor(new Vector3(-0.7f, -0.5f, 0.0f), colorYellow),
-                new VertexPositionColor(new Vector3(-0.5f, -0.2f, 0.0f), colorRed),
-                new VertexPositionColor(new Vector3(-0.2f, -0.1f, 0.0f), colorRed),
-                new VertexPositionColor(new Vector3(-0.1f, 0.2f, 0.0f), colorRed),
-                new VertexPositionColor(new Vector3(0.2f, -0.25f, 0.0f), colorYellow),
-                new VertexPositionColor(new Vector3(0.25f, 0.37f, 0.0f), colorYellow),
-                new VertexPositionColor(new Vector3(0.37f, -0.5f, 0.0f), colorRed),
-                new VertexPositionColor(new Vector3(0.5f, -0.6f, 0.0f), colorRed),
-                new VertexPositionColor(new Vector3(0.6f, 0.8f, 0.0f), colorGreen),
-                new VertexPositionColor(new Vector3(0.8f, 1.0f, 0.0f), colorGreen)
+                new(new Vector3(-0.7f, -0.5f, 0.0f), colorYellow),
+                new(new Vector3(-0.5f, -0.2f, 0.0f), colorRed),
+                new(new Vector3(-0.2f, -0.1f, 0.0f), colorRed),
+                new(new Vector3(-0.1f, 0.2f, 0.0f), colorRed),
+                new(new Vector3(0.2f, -0.25f, 0.0f), colorYellow),
+                new(new Vector3(0.25f, 0.37f, 0.0f), colorYellow),
+                new(new Vector3(0.37f, -0.5f, 0.0f), colorRed),
+                new(new Vector3(0.5f, -0.6f, 0.0f), colorRed),
+                new(new Vector3(0.6f, 0.8f, 0.0f), colorGreen),
+                new(new Vector3(0.8f, 1.0f, 0.0f), colorGreen)
             };
 
             vertexBufferSignalSize = signalVertices.Length * Unsafe.SizeOf<VertexPositionColor>();
@@ -293,11 +297,11 @@ namespace DirectX3D12Example
 
             VertexPositionColor[] pointVertices = new VertexPositionColor[]
             {
-                new VertexPositionColor(new Vector3(-0.8f, 0.8f, 0.0f), colorGreen),
-                new VertexPositionColor(new Vector3(-0.8f, 0.7f, 0.0f), colorGreen),
-                new VertexPositionColor(new Vector3(-0.8f, 0.6f, 0.0f), colorGreen),
-                new VertexPositionColor(new Vector3(-0.8f, 0.5f, 0.0f), colorGreen),
-                new VertexPositionColor(new Vector3(-0.8f, 0.4f, 0.0f), colorGreen)
+                new(new Vector3(-0.8f, 0.8f, 0.0f), colorGreen),
+                new(new Vector3(-0.8f, 0.7f, 0.0f), colorGreen),
+                new(new Vector3(-0.8f, 0.6f, 0.0f), colorGreen),
+                new(new Vector3(-0.8f, 0.5f, 0.0f), colorGreen),
+                new(new Vector3(-0.8f, 0.4f, 0.0f), colorGreen)
             };
 
             vertexBufferPointSize = pointVertices.Length * Unsafe.SizeOf<VertexPositionColor>();
@@ -345,7 +349,10 @@ namespace DirectX3D12Example
 
             // Present the frame
             Result result = SwapChain.Present(1, PresentFlags.None);
-            if (result.Failure && (result.Code == ResultCode.DeviceRemoved)) return;
+            if (result.Failure && (result.Code == ResultCode.DeviceRemoved))
+            {
+                return;
+            }
 
             WaitForPreviousFrame();
         }

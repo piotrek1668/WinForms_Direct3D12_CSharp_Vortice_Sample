@@ -9,10 +9,10 @@ namespace DirectX3D12Example
         public GIFactory()
         {
             #if DEBUG
-            const bool validation = true;
+            const bool Validation = true;
             #endif
 
-            this.factory4 = DXGI.CreateDXGIFactory2<IDXGIFactory4>(validation);
+            this.factory4 = DXGI.CreateDXGIFactory2<IDXGIFactory4>(Validation);
 
             if (this.factory4 == null)
             {
